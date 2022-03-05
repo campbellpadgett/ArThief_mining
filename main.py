@@ -11,27 +11,19 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
 def main():
 
     print('Chicago, MET, or RJK')
     source = input('Which source will we convert? ')
     
     if source == 'Chicago':
-        csv_file = ''
+        chicago()
     elif source == 'MET':
-        csv_file = ''
+        met()
     elif source =='RJK':
-        csv_file = ''
+        rjk()
+    else:
+        raise Exception('input was either misspelled or not typed')
 
     pass
 
