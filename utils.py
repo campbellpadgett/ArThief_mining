@@ -70,7 +70,7 @@ async def process_csv_entry(row: str, session: aiohttp.ClientSession, count: int
     for key in desired_data:
         new_line.append(row[desired_data[key]])
 
-    url = f'https://collectionapi.metmuseum.org/public/collection/v1/objects/{row[desired_met_data["image_link"]]}'
+    url = f'https://collectionapi.metmuseum.org/public/collection/v1/objects/{row[desired_data["image_link"]]}'
 
     async with session.get(url, allow_redirects=False) as response:
         result = await response.json()
@@ -121,7 +121,7 @@ if __name__ == '__main__':
 
     source = 'MET'
     original_file = '../MET/MetObjects.csv'
-    key_object_type_terms = ['Paintings', 'Paintings-Decorative']
+    key_object_type_terms = ['Paintings']
     desired_met_data = {
         'title': 9,
         'artist': 18,
@@ -142,6 +142,7 @@ if __name__ == '__main__':
     print(len(csv_rows[:26]))
     print('--------------------------------------')
     start = time.time()
-    asyncio.run(create_new_csv(filename='met.csv', rows=csv_rows[:26], desired_data=desired_met_data))
+    asyncio.run(create_new_csv(filename='met.csv',
+                rows=csv_rows[:26], desired_data=desired_met_data))
     end = time.time()
     print(f'searched {len(csv_rows[:26])} links in {end - start} seconds')

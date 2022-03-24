@@ -1,6 +1,4 @@
-import csv
 import time
-from datetime import datetime
 from typing import NoReturn
 from utils import csv_traverse, create_new_csv
 import asyncio
@@ -13,7 +11,7 @@ def met() -> NoReturn:
 
     source = 'MET'
     original_file = '../MET/MetObjects.csv'
-    key_object_type_terms = ['Paintings', 'Paintings-Decorative']
+    key_object_type_terms = ['Paintings']
     desired_met_data = {
         'title': 9,
         'artist': 18,
@@ -29,17 +27,15 @@ def met() -> NoReturn:
         'image_link': 4
     }
 
-    artworks = csv_traverse(original_file, key_object_type_terms, source)
-    
-    print('--------------------------------------')
-    print(len(artworks[:26]))
-    
-    start = time.time()
-    asyncio.run(create_new_csv(filename='met.csv', rows=artworks, desired_data=desired_met_data))
-    end = time.time()
+    csv_rows = csv_traverse(original_file, key_object_type_terms, source)
 
+    print(len(csv_rows[:26]))
     print('--------------------------------------')
-    print(f'Wrote {len(artworks[:26])} new rows in {end - start} seconds')
+    start = time.time()
+    asyncio.run(create_new_csv(filename='met.csv',
+                rows=csv_rows[:26], desired_data=desired_met_data))
+    end = time.time()
+    print(f'searched {len(csv_rows[:26])} links in {end - start} seconds')
 
 
 
