@@ -95,7 +95,7 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
     with open(filename, mode='w') as test_file:
         met_writer = csv.writer(test_file, delimiter=',',
                                 quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        met_writer.writerow(['Title', 'Artist'])
+        met_writer.writerow(['Title', 'Artist', 'Natiionality', 'Artist Bio', 'Culture', 'Era', 'Gender', 'Nation', 'Medium', 'Source', 'DOR', 'Image Link', 'Image', 'Image Small'])
 
         async with aiohttp.ClientSession(connector=conn, headers=headers) as session:
             tasks = []
