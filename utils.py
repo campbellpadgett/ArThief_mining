@@ -57,14 +57,9 @@ def get_row_indicies(row: List[str]) -> List[str]:
 
 
 
-async def process_met_csv_entry(row: str, session: aiohttp.ClientSession, count: int, desired_data: Dict[str, int], writer: Callable):
+async def met_processor(row: str, session: aiohttp.ClientSession, pause: bool, desired_data: Dict[str, int], writer: Callable):
     """Takes a row from a csv file and makes a get request with the url stored 
     in it. Then stores new url and desired data in new csv row"""
-
-    count += 1
-    if count > 70:
-        time.sleep(1.1)
-        count = 0
 
     new_line = []
     for key in desired_data:
@@ -73,6 +68,11 @@ async def process_met_csv_entry(row: str, session: aiohttp.ClientSession, count:
     url = f'https://collectionapi.metmuseum.org/public/collection/v1/objects/{row[desired_data["image_link"]]}'
 
     async with session.get(url, allow_redirects=False) as response:
+        # per instructions of met api
+        if pause:
+            print('limit hit. Pausing for 1.1 seconds')
+            time.sleep(1.1)
+
         result = await response.json()
         primaryImage, primaryImageSmall = result['primaryImage'], result['primaryImageSmall']
 
@@ -82,7 +82,8 @@ async def process_met_csv_entry(row: str, session: aiohttp.ClientSession, count:
         writer.writerow(new_line)
 
 
-async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str, int], csv_processor: Callable[[str, aiohttp.ClientSession, int, Dict[str, int], Callable], NoReturn]):
+async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str, int], 
+                            csv_processor: Callable[[str, aiohttp.ClientSession, int, Dict[str, int], Callable], NoReturn]):
     """Takes rows of csv data and persists them to new csv using the process_csv_entry function
     and the event loop from asyncio and aiohttp"""
 
@@ -101,9 +102,13 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
             tasks = []
             count = 0
             for row in rows:
+                pause = False
+                if count > 75:
+                    pause, count = True, 0
                 task = asyncio.ensure_future(csv_processor(
-                    row=row, session=session, count=count, desired_data=desired_data, writer=met_writer))
+                    row=row, session=session, pause=pause, desired_data=desired_data, writer=met_writer))
                 tasks.append(task)
+                count += 1
             await asyncio.gather(*tasks, return_exceptions=True)
 
 
@@ -139,10 +144,10 @@ if __name__ == '__main__':
     
     csv_rows = csv_traverse(original_file, key_object_type_terms, source)
 
-    print(len(csv_rows[:26]))
+    print(len(csv_rows[:100]))
     print('--------------------------------------')
     start = time.time()
     asyncio.run(create_new_csv(filename='met.csv',
-                rows=csv_rows[:26], desired_data=desired_met_data, csv_processor=process_met_csv_entry))
+                rows=csv_rows[:100], desired_data=desired_met_data, csv_processor=met_processor))
     end = time.time()
-    print(f'searched {len(csv_rows[:26])} links in {end - start} seconds')
+    print(f'searched {len(csv_rows[:100])} links in {end - start} seconds')
