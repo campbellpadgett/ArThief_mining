@@ -1,6 +1,6 @@
 import time
 from typing import NoReturn
-from utils import csv_traverse, create_new_csv
+from utils import csv_traverse, create_new_csv, process_met_csv_entry
 import asyncio
 
 
@@ -33,7 +33,7 @@ def met() -> NoReturn:
     print('--------------------------------------')
     start = time.time()
     asyncio.run(create_new_csv(filename='met.csv',
-                rows=csv_rows[:26], desired_data=desired_met_data))
+                rows=csv_rows[:26], desired_data=desired_met_data, csv_processor=process_met_csv_entry))
     end = time.time()
     print(f'searched {len(csv_rows[:26])} links in {end - start} seconds')
 

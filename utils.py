@@ -1,5 +1,5 @@
 import csv
-from typing import List, Dict
+from typing import Callable, List, Dict, NoReturn
 import aiohttp
 import asyncio
 import ssl
@@ -57,7 +57,7 @@ def get_row_indicies(row: List[str]) -> List[str]:
 
 
 
-async def process_csv_entry(row: str, session: aiohttp.ClientSession, count: int, desired_data: Dict[str, int], writer: csv.writer):
+async def process_met_csv_entry(row: str, session: aiohttp.ClientSession, count: int, desired_data: Dict[str, int], writer: Callable):
     """Takes a row from a csv file and makes a get request with the url stored 
     in it. Then stores new url and desired data in new csv row"""
 
@@ -82,7 +82,7 @@ async def process_csv_entry(row: str, session: aiohttp.ClientSession, count: int
         writer.writerow(new_line)
 
 
-async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str, int]):
+async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str, int], csv_processor: Callable[[str, aiohttp.ClientSession, int, Dict[str, int], Callable], NoReturn]):
     """Takes rows of csv data and persists them to new csv using the process_csv_entry function
     and the event loop from asyncio and aiohttp"""
 
@@ -101,7 +101,7 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
             tasks = []
             count = 0
             for row in rows:
-                task = asyncio.ensure_future(process_csv_entry(
+                task = asyncio.ensure_future(csv_processor(
                     row=row, session=session, count=count, desired_data=desired_data, writer=met_writer))
                 tasks.append(task)
             await asyncio.gather(*tasks, return_exceptions=True)
@@ -143,6 +143,6 @@ if __name__ == '__main__':
     print('--------------------------------------')
     start = time.time()
     asyncio.run(create_new_csv(filename='met.csv',
-                rows=csv_rows[:26], desired_data=desired_met_data))
+                rows=csv_rows[:26], desired_data=desired_met_data, csv_processor=process_met_csv_entry))
     end = time.time()
     print(f'searched {len(csv_rows[:26])} links in {end - start} seconds')
