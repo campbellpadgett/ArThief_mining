@@ -54,11 +54,61 @@ def get_row_indicies(row: List[str]) -> List[str]:
     return row_values
 
 
+# async def chi_processor(row: str, session: aiohttp.ClientSession, pause: bool, desired_data: Dict[str, int], writer: Callable):
+#     """Takes a row from the Chicago csv file and makes a get request with the url stored 
+#     in it. Then stores new url and desired data in new csv row"""
 
+#     new_line = []
+#     for key in desired_data:
+#         new_line.append(row[desired_data[key]])
+
+#     primaryImage = f'https://www.artic.edu/iiif/2/{row[desired_data["image_link"]]}/full/1686,/0/default.jpg'
+#     primaryImageSmall = f'https://www.artic.edu/iiif/2/{row[desired_data["image_link"]]}/full/843,/0/default.jpg'
+
+#     async with session.get(url, allow_redirects=False) as response:
+#         # per instructions of met api
+#         if pause:
+#             print('_________limit hit. Pausing for 1.3 seconds_________')
+#             time.sleep(1.3)
+
+#         result = await response.json()
+#         primaryImage, primaryImageSmall = result['primaryImage'], result['primaryImageSmall']
+
+#         if result['isPublicDomain']:
+#             print(f'Storing {primaryImage}, {url}')
+#             new_line.append(primaryImage)
+#             new_line.append(primaryImageSmall)
+#             writer.writerow(new_line)
+
+
+async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, desired_data: Dict[str, int], writer: Callable):
+    """Takes a row from the Rijksstudio csv file and makes a get request with the url stored 
+    in it. Then stores new url and desired data in new csv row"""
+
+    new_line = []
+    for key in desired_data:
+        new_line.append(row[desired_data[key]])
+
+    url = f'https://www.rijksmuseum.nl/api/nl/collection/{row[desired_data["image_link"]]}/key=RDOovp6Y'
+    
+    async with session.get(url, allow_redirects=False) as response:
+        # per instructions of met api
+        if pause:
+            print('_________limit hit. Pausing for 1.3 seconds_________')
+            time.sleep(1.3)
+
+        result = await response.json()
+        primaryImage = result['artObject']
+
+        if result['isPublicDomain']:
+            print(f'Storing {primaryImage}, {url}')
+            new_line.append(primaryImage)
+            new_line.append(primaryImageSmall)
+            writer.writerow(new_line)
 
 
 async def met_processor(row: str, session: aiohttp.ClientSession, pause: bool, desired_data: Dict[str, int], writer: Callable):
-    """Takes a row from a csv file and makes a get request with the url stored 
+    """Takes a row from the MET csv file and makes a get request with the url stored 
     in it. Then stores new url and desired data in new csv row"""
 
     new_line = []
@@ -70,16 +120,17 @@ async def met_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
     async with session.get(url, allow_redirects=False) as response:
         # per instructions of met api
         if pause:
-            print('limit hit. Pausing for 1.1 seconds')
-            time.sleep(1.1)
+            print('_________limit hit. Pausing for 1.3 seconds_________')
+            time.sleep(1.3)
 
         result = await response.json()
         primaryImage, primaryImageSmall = result['primaryImage'], result['primaryImageSmall']
 
-        print(f'Storing {primaryImage}, {primaryImageSmall}...')
-        new_line.append(primaryImage)
-        new_line.append(primaryImageSmall)
-        writer.writerow(new_line)
+        if result['isPublicDomain']:
+            print(f'Storing {primaryImage}, {url}')
+            new_line.append(primaryImage)
+            new_line.append(primaryImageSmall)
+            writer.writerow(new_line)
 
 
 async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str, int], 
@@ -99,18 +150,17 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
         met_writer.writerow(['Title', 'Artist', 'Natiionality', 'Artist Bio', 'Culture', 'Era', 'Gender', 'Nation', 'Medium', 'Source', 'DOR', 'Image Link', 'Image', 'Image Small'])
 
         async with aiohttp.ClientSession(connector=conn, headers=headers) as session:
-            tasks = []
-            count = 0
+            tasks, rows_traversed = [], 0
             for row in rows:
                 pause = False
-                if count > 75:
-                    pause, count = True, 0
+                if rows_traversed > 75:
+                    pause, rows_traversed = True, 0
                 task = asyncio.ensure_future(csv_processor(
                     row=row, session=session, pause=pause, desired_data=desired_data, writer=met_writer))
                 tasks.append(task)
-                count += 1
+                rows_traversed += 1
             await asyncio.gather(*tasks, return_exceptions=True)
-
+            
 
 
 

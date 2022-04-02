@@ -24,18 +24,20 @@ def met() -> NoReturn:
         'medium': 31,
         'source': 50,
         'date_of_release': 28,
-        'image_link': 4
+        'image_link': 4,
     }
 
     csv_rows = csv_traverse(original_file, key_object_type_terms, source)
 
-    print(len(csv_rows[:26]))
+    print(len(csv_rows))
     print('--------------------------------------')
     start = time.time()
     asyncio.run(create_new_csv(filename='met.csv',
-                rows=csv_rows[:26], desired_data=desired_met_data, csv_processor=met_processor))
+                rows=csv_rows, 
+                desired_data=desired_met_data, 
+                csv_processor=met_processor))
     end = time.time()
-    print(f'searched {len(csv_rows[:26])} links in {end - start} seconds')
+    print(f'searched {len(csv_rows)} links in {end - start} seconds')
 
 
 
