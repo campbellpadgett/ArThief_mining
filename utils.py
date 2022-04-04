@@ -19,15 +19,18 @@ def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List:
 
         if source == 'MET':
             class_idx, isPub_idx = 45, 3
+        elif source == "RJK":
+            class_idx, isPub_idx = 3, 6
 
         for row in csv_reader:
 
             classification = row[class_idx]
             isPublicDomain = row[isPub_idx]
 
-            if classification not in key_terms or isPublicDomain == False:
+            if classification not in key_terms or isPublicDomain == False or isPublicDomain== '':
                 continue
             
+            print(row)
             traversed_csv.append(row)
         
         end = time.time()
@@ -54,57 +57,55 @@ def get_row_indicies(row: List[str]) -> List[str]:
     return row_values
 
 
-# async def chi_processor(row: str, session: aiohttp.ClientSession, pause: bool, desired_data: Dict[str, int], writer: Callable):
-#     """Takes a row from the Chicago csv file and makes a get request with the url stored 
-#     in it. Then stores new url and desired data in new csv row"""
 
-#     new_line = []
-#     for key in desired_data:
-#         new_line.append(row[desired_data[key]])
+def filter_for_rjk_fields(json_data: str, image_link: str) -> List[str]:
+    """Takes in RJK json data and returns row for csv"""
 
-#     primaryImage = f'https://www.artic.edu/iiif/2/{row[desired_data["image_link"]]}/full/1686,/0/default.jpg'
-#     primaryImageSmall = f'https://www.artic.edu/iiif/2/{row[desired_data["image_link"]]}/full/843,/0/default.jpg'
+    title = json_data['artObject']['title']
+    artist = json_data['artObject']['principalMakers'][0]['name']
+    artist_nationality = json_data['artObject']['principalMakers'][0]['nationality']
+    artist_display_bio = json_data['artObject']['principalMakers'][0]['labelDesc']
+    culture = json_data['artObject']['language']
+    era = json_data['artObject']['dating']['presentingDate']
+    # gender = json_data['artObject']['dating']['presentingDate']
+    nation = json_data['artObject']['productionPlaces'][0]
+    medium = json_data['artObject']['physicalMedium']
+    source = 'Rijksmuseum'
+    date_of_release = json_data['artObject']['dating']['presentingDate']
+    image_link = image_link
 
-#     async with session.get(url, allow_redirects=False) as response:
-#         # per instructions of met api
-#         if pause:
-#             print('_________limit hit. Pausing for 1.3 seconds_________')
-#             time.sleep(1.3)
-
-#         result = await response.json()
-#         primaryImage, primaryImageSmall = result['primaryImage'], result['primaryImageSmall']
-
-#         if result['isPublicDomain']:
-#             print(f'Storing {primaryImage}, {url}')
-#             new_line.append(primaryImage)
-#             new_line.append(primaryImageSmall)
-#             writer.writerow(new_line)
+    return [title, artist, artist_nationality,
+            artist_display_bio,
+            culture,
+            era,
+            nation,
+            medium,
+            source,
+            date_of_release,
+            image_link]
 
 
 async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, desired_data: Dict[str, int], writer: Callable):
     """Takes a row from the Rijksstudio csv file and makes a get request with the url stored 
     in it. Then stores new url and desired data in new csv row"""
 
-    new_line = []
-    for key in desired_data:
-        new_line.append(row[desired_data[key]])
 
-    url = f'https://www.rijksmuseum.nl/api/nl/collection/{row[desired_data["image_link"]]}/key=RDOovp6Y'
+    object_number, image = row[0], row[6]
+    url = f'https://www.rijksmuseum.nl/api/nl/collection/{object_number}?key=RDOovp6Y'
+    print('url prepared: ', url)
     
     async with session.get(url, allow_redirects=False) as response:
+        print('sending request now', url)
         # per instructions of met api
         if pause:
             print('_________limit hit. Pausing for 1.3 seconds_________')
             time.sleep(1.3)
 
         result = await response.json()
-        primaryImage = result['artObject']
+        new_line = filter_for_rjk_fields(result, image)
 
-        if result['isPublicDomain']:
-            print(f'Storing {primaryImage}, {url}')
-            new_line.append(primaryImage)
-            new_line.append(primaryImageSmall)
-            writer.writerow(new_line)
+        print(f'Storing {image}, {url}')
+        writer.writerow(new_line)
 
 
 async def met_processor(row: str, session: aiohttp.ClientSession, pause: bool, desired_data: Dict[str, int], writer: Callable):
@@ -145,9 +146,9 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
     conn = aiohttp.TCPConnector(ssl=ssl_context, limit=10)
 
     with open(filename, mode='w') as test_file:
-        met_writer = csv.writer(test_file, delimiter=',',
+        writer = csv.writer(test_file, delimiter=',',
                                 quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        met_writer.writerow(['Title', 'Artist', 'Natiionality', 'Artist Bio', 'Culture', 'Era', 'Gender', 'Nation', 'Medium', 'Source', 'DOR', 'Image Link', 'Image', 'Image Small'])
+        writer.writerow(['Title', 'Artist', 'Natiionality', 'Artist Bio', 'Culture', 'Era', 'Gender', 'Nation', 'Medium', 'Source', 'DOR', 'Image'])
 
         async with aiohttp.ClientSession(connector=conn, headers=headers) as session:
             tasks, rows_traversed = [], 0
@@ -156,7 +157,7 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
                 if rows_traversed > 75:
                     pause, rows_traversed = True, 0
                 task = asyncio.ensure_future(csv_processor(
-                    row=row, session=session, pause=pause, desired_data=desired_data, writer=met_writer))
+                    row=row, session=session, pause=pause, desired_data=desired_data, writer=writer))
                 tasks.append(task)
                 rows_traversed += 1
             await asyncio.gather(*tasks, return_exceptions=True)
@@ -174,10 +175,26 @@ if __name__ == '__main__':
     # key_terms = ['Paintings', 'Paintings-Decorative']
     # csv_traverse('../MET/MetObjects.csv', key_terms, 'MET')
 
-    source = 'MET'
-    original_file = '../MET/MetObjects.csv'
-    key_object_type_terms = ['Paintings']
-    desired_met_data = {
+    source = 'RJK'
+    # original_file = '../MET/MetObjects.csv'
+    original_file = '../rijk/202001-rma-csv-collection.csv'
+    key_object_type_terms = ['schilderij']
+    # desired_met_data = {
+    #     'title': 9,
+    #     'artist': 18,
+    #     'artist_nationality': 22,
+    #     'artist_display_bio': 19,
+    #     'culture': 10,
+    #     'era': 11,
+    #     'gender': 25,
+    #     'nation': 38,
+    #     'medium': 31,
+    #     'source': 50,
+    #     'date_of_release': 28,
+    #     'image_link': 4
+    # }
+
+    desired_rjk_data = {
         'title': 9,
         'artist': 18,
         'artist_nationality': 22,
@@ -197,7 +214,7 @@ if __name__ == '__main__':
     print(len(csv_rows[:100]))
     print('--------------------------------------')
     start = time.time()
-    asyncio.run(create_new_csv(filename='met.csv',
-                rows=csv_rows[:100], desired_data=desired_met_data, csv_processor=met_processor))
+    asyncio.run(create_new_csv(filename='rjk.csv',
+                rows=csv_rows[:100], desired_data=desired_rjk_data, csv_processor=rjk_processor))
     end = time.time()
     print(f'searched {len(csv_rows[:100])} links in {end - start} seconds')
