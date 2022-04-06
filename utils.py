@@ -5,6 +5,7 @@ import asyncio
 import ssl
 import time
 import certifi
+import translators as ts
 
 def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List:
 
@@ -61,6 +62,8 @@ def get_row_indicies(row: List[str]) -> List[str]:
 def filter_for_rjk_fields(json_data: str, image_link: str) -> List[str]:
     """Takes in RJK json data and returns row for csv"""
 
+    start = time.time()
+
     title = json_data['artObject']['title']
     artist = json_data['artObject']['principalMakers'][0]['name']
     artist_nationality = json_data['artObject']['principalMakers'][0]['nationality']
@@ -74,6 +77,9 @@ def filter_for_rjk_fields(json_data: str, image_link: str) -> List[str]:
     date_of_release = json_data['artObject']['dating']['presentingDate']
     image_link = image_link
 
+    end = time.time()
+    print(f'translated link info in {end - start} seconds')
+
     return [title, artist, artist_nationality,
             artist_display_bio,
             culture,
@@ -85,6 +91,7 @@ def filter_for_rjk_fields(json_data: str, image_link: str) -> List[str]:
             image_link]
 
 
+
 async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, desired_data: Dict[str, int], writer: Callable):
     """Takes a row from the Rijksstudio csv file and makes a get request with the url stored 
     in it. Then stores new url and desired data in new csv row"""
@@ -92,14 +99,12 @@ async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
 
     object_number, image = row[0], row[6]
     url = f'https://www.rijksmuseum.nl/api/nl/collection/{object_number}?key=RDOovp6Y'
-    print('url prepared: ', url)
     
     async with session.get(url, allow_redirects=False) as response:
-        print('sending request now', url)
         # per instructions of met api
         if pause:
             print('_________limit hit. Pausing for 1.3 seconds_________')
-            time.sleep(1.3)
+            time.sleep(1)
 
         result = await response.json()
         new_line = filter_for_rjk_fields(result, image)
@@ -145,8 +150,8 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
     ssl_context = ssl.create_default_context(cafile=certifi.where())
     conn = aiohttp.TCPConnector(ssl=ssl_context, limit=10)
 
-    with open(filename, mode='w') as test_file:
-        writer = csv.writer(test_file, delimiter=',',
+    with open(filename, mode='w') as file:
+        writer = csv.writer(file, delimiter=',',
                                 quotechar='"', quoting=csv.QUOTE_MINIMAL)
         writer.writerow(['Title', 'Artist', 'Natiionality', 'Artist Bio', 'Culture', 'Era', 'Gender', 'Nation', 'Medium', 'Source', 'DOR', 'Image'])
 
@@ -154,7 +159,7 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
             tasks, rows_traversed = [], 0
             for row in rows:
                 pause = False
-                if rows_traversed > 75:
+                if rows_traversed > 70:
                     pause, rows_traversed = True, 0
                 task = asyncio.ensure_future(csv_processor(
                     row=row, session=session, pause=pause, desired_data=desired_data, writer=writer))
