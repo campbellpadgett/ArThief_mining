@@ -5,7 +5,9 @@ import asyncio
 import ssl
 import time
 import certifi
-import translators as ts
+from googletrans import Translator
+from termcolor import colored
+import settings
 
 def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List:
 
@@ -62,8 +64,6 @@ def get_row_indicies(row: List[str]) -> List[str]:
 def filter_for_rjk_fields(json_data: str, image_link: str) -> List[str]:
     """Takes in RJK json data and returns row for csv"""
 
-    start = time.time()
-
     title = json_data['artObject']['title']
     artist = json_data['artObject']['principalMakers'][0]['name']
     artist_nationality = json_data['artObject']['principalMakers'][0]['nationality']
@@ -76,9 +76,6 @@ def filter_for_rjk_fields(json_data: str, image_link: str) -> List[str]:
     source = 'Rijksmuseum'
     date_of_release = json_data['artObject']['dating']['presentingDate']
     image_link = image_link
-
-    end = time.time()
-    print(f'translated link info in {end - start} seconds')
 
     return [title, artist, artist_nationality,
             artist_display_bio,
@@ -103,7 +100,7 @@ async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
     async with session.get(url, allow_redirects=False) as response:
         # per instructions of met api
         if pause:
-            print('_________limit hit. Pausing for 1.3 seconds_________')
+            print('_________limit hit. Pausing for 1 second_________')
             time.sleep(1)
 
         result = await response.json()
@@ -111,6 +108,79 @@ async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
 
         print(f'Storing {image}, {url}')
         writer.writerow(new_line)
+
+
+async def translate_processor(row: List[str], pause: bool, session: aiohttp.ClientSession, writer: Callable):
+
+    title_idx, bio_idx, medium_idx = 0, 3, 7
+    text = [row[title_idx], row[bio_idx], row[medium_idx]]
+    print(text, type(text))
+
+    params = {"q": f'{text}', "target": 'en'}
+    print(colored('[SENDING TRANSLATION]', 'magenta'), f'{row[title_idx]}')
+
+    async with session.post(url=settings.url, params=params) as response:
+        if pause:
+            print(colored('[PAUSE]', 'yellow'),
+                  '___limit reached, pausing for half a second___')
+            time.sleep(0.5)
+
+        translated_texts: List[str] = await response.json()
+        translation: List[str]
+
+        # removing the quotes and array charecters from google translate api
+        translations = translated_texts['data']['translations'][0]['translatedText']
+        quote_removed = translations.replace("&quot;", "")
+        front_bar_removed = quote_removed.replace("&#39;", "'")
+        back_bar_removed = front_bar_removed.replace('[', "")
+        combined_translation = back_bar_removed.replace(']', "")
+        comma_striped_translation = combined_translation.replace("'", "")
+
+        translation = comma_striped_translation.split(',')
+        print(colored(
+            f'[TRANSLATION COMPLETE]: {row[title_idx]} => {translation[0]}', 'green'))
+
+        title, bio, medium = translation[0], translation[3]
+        bio = translation[1] + ',' + translation[2]
+
+        writer.writerow([title,
+                        row[1],
+                        row[2],
+                        bio,
+                        row[4],
+                        row[5],
+                        row[6],
+                        medium,
+                        row[8],
+                        row[9],
+                        row[10]])
+
+
+async def create_tanslated_csv(filename: str, rows: list[str], csv_processor: Callable[[str, bool, Callable], NoReturn]):
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh Intel Mac OS X 10.15 rv: 98.0) Gecko/20100101 Firefox/98.0"
+    }
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+    conn = aiohttp.TCPConnector(ssl=ssl_context, limit=10)
+
+    with open(filename, mode='w') as file:
+        writer = csv.writer(file, delimiter=',',
+                            quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(['Title', 'Artist', 'Nationality', 'Artist Bio', 'Culture',
+                        'Era', 'Nation', 'Medium', 'Source', 'DOR', 'Image'])
+
+        async with aiohttp.ClientSession(connector=conn, headers=headers) as session:
+            tasks, rows_traversed = [], 0
+            for row in rows:
+                pause = False
+                if rows_traversed > 50:
+                    pause, rows_traversed = True, 0
+                task = asyncio.ensure_future(csv_processor(
+                    row=row, pause=pause, session=session, writer=writer))
+                tasks.append(task)
+                rows_traversed += 1
+            await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def met_processor(row: str, session: aiohttp.ClientSession, pause: bool, desired_data: Dict[str, int], writer: Callable):
@@ -159,7 +229,7 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
             tasks, rows_traversed = [], 0
             for row in rows:
                 pause = False
-                if rows_traversed > 70:
+                if rows_traversed > 50:
                     pause, rows_traversed = True, 0
                 task = asyncio.ensure_future(csv_processor(
                     row=row, session=session, pause=pause, desired_data=desired_data, writer=writer))
