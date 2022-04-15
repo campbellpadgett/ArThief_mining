@@ -100,30 +100,30 @@ async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
     async with session.get(url, allow_redirects=False) as response:
         # per instructions of met api
         if pause:
-            print('_________limit hit. Pausing for 1 second_________')
+            print(colored('[PAUSE]', 'yellow'),
+                  '_____limit reached, pausing 1 second_____')
             time.sleep(1)
 
         result = await response.json()
         new_line = filter_for_rjk_fields(result, image)
 
-        print(f'Storing {image}, {url}')
+        print(colored('[LOG]', 'blue'), f'Storing {image}, {url}')
         writer.writerow(new_line)
 
 
-async def translate_processor(row: List[str], pause: bool, session: aiohttp.ClientSession, writer: Callable):
+async def translate_processor(row: List[str], pause: bool, session: aiohttp.ClientSession, writer: Callable, count: int, length: int):
 
-    title_idx, bio_idx, medium_idx = 0, 3, 7
-    text = [row[title_idx], row[bio_idx], row[medium_idx]]
-    print(text, type(text))
+    title_idx, bio_idx, nation_idx, medium_idx = 0, 3, 6, 7
+    text = [row[title_idx], row[bio_idx], row[nation_idx], row[medium_idx]]
 
+    url = 'https://translation.googleapis.com/language/translate/v2?key=AIzaSyAsJ230kjrEFK0rDzoJWtFX3fGmwjvmKa4'
     params = {"q": f'{text}', "target": 'en'}
-    print(colored('[SENDING TRANSLATION]', 'magenta'), f'{row[title_idx]}')
+    # print(colored('[SENDING TRANSLATION]', 'magenta'), f'{row[title_idx]}')
 
-    async with session.post(url=settings.url, params=params) as response:
+    async with session.post(url=url, params=params) as response:
         if pause:
-            print(colored('[PAUSE]', 'yellow'),
-                  '___limit reached, pausing for half a second___')
-            time.sleep(0.5)
+            print(colored('[RUNNING]', 'yellow'), f'{length - count} rows left to translate')
+            time.sleep(0.3)
 
         translated_texts: List[str] = await response.json()
         translation: List[str]
@@ -137,23 +137,25 @@ async def translate_processor(row: List[str], pause: bool, session: aiohttp.Clie
         comma_striped_translation = combined_translation.replace("'", "")
 
         translation = comma_striped_translation.split(',')
-        print(colored(
-            f'[TRANSLATION COMPLETE]: {row[title_idx]} => {translation[0]}', 'green'))
+        # print(translation)
+        # print(colored(f'[TRANSLATION]:', 'magenta'), f'{translation[0]}')
 
-        title, bio, medium = translation[0], translation[3]
+        title, nation, medium = translation[0], translation[3], translation[4]
         bio = translation[1] + ',' + translation[2]
 
-        writer.writerow([title,
-                        row[1],
-                        row[2],
-                        bio,
-                        row[4],
-                        row[5],
-                        row[6],
-                        medium,
-                        row[8],
-                        row[9],
-                        row[10]])
+        new_row = [title,
+                   row[1],
+                   row[2],
+                   bio,
+                   row[4],
+                   row[5],
+                   nation,
+                   medium,
+                   row[8],
+                   row[9],
+                   row[10]]
+
+        writer.writerow(new_row)
 
 
 async def create_tanslated_csv(filename: str, rows: list[str], csv_processor: Callable[[str, bool, Callable], NoReturn]):
@@ -170,6 +172,9 @@ async def create_tanslated_csv(filename: str, rows: list[str], csv_processor: Ca
         writer.writerow(['Title', 'Artist', 'Nationality', 'Artist Bio', 'Culture',
                         'Era', 'Nation', 'Medium', 'Source', 'DOR', 'Image'])
 
+        count = 1
+        length = len(rows)
+
         async with aiohttp.ClientSession(connector=conn, headers=headers) as session:
             tasks, rows_traversed = [], 0
             for row in rows:
@@ -177,8 +182,9 @@ async def create_tanslated_csv(filename: str, rows: list[str], csv_processor: Ca
                 if rows_traversed > 50:
                     pause, rows_traversed = True, 0
                 task = asyncio.ensure_future(csv_processor(
-                    row=row, pause=pause, session=session, writer=writer))
+                    row=row, pause=pause, session=session, writer=writer, count=count, length=length))
                 tasks.append(task)
+                count += 1
                 rows_traversed += 1
             await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -225,11 +231,13 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
                                 quotechar='"', quoting=csv.QUOTE_MINIMAL)
         writer.writerow(['Title', 'Artist', 'Natiionality', 'Artist Bio', 'Culture', 'Era', 'Gender', 'Nation', 'Medium', 'Source', 'DOR', 'Image'])
 
+        print(colored('[LOG]', 'blue'), f'{filename} created')
+
         async with aiohttp.ClientSession(connector=conn, headers=headers) as session:
             tasks, rows_traversed = [], 0
             for row in rows:
                 pause = False
-                if rows_traversed > 50:
+                if rows_traversed > 55:
                     pause, rows_traversed = True, 0
                 task = asyncio.ensure_future(csv_processor(
                     row=row, session=session, pause=pause, desired_data=desired_data, writer=writer))
@@ -284,12 +292,28 @@ if __name__ == '__main__':
         'image_link': 4
     }
     
-    csv_rows = csv_traverse(original_file, key_object_type_terms, source)
+    # csv_rows = csv_traverse(original_file, key_object_type_terms, source)
 
-    print(len(csv_rows[:100]))
+    print(colored('[START]', 'green'))
+
+    csv_rows = []
+    with open('rjk.csv') as csv_file_opened:
+        print(colored('[LOG]', 'blue'), 'opened rjk.csv')
+        csv_reader = csv.reader(csv_file_opened, delimiter=',')
+        count = 0
+        for row in csv_reader:
+            if count == 0:
+                count += 1
+                continue
+            csv_rows.append(row)
+
+    print(colored('[LOG]', 'blue'), len(csv_rows), 'rows to be processed')
     print('--------------------------------------')
     start = time.time()
-    asyncio.run(create_new_csv(filename='rjk.csv',
-                rows=csv_rows[:100], desired_data=desired_rjk_data, csv_processor=rjk_processor))
+    # asyncio.run(create_new_csv(filename='rjk.csv',
+    #             rows=csv_rows, desired_data=desired_rjk_data, csv_processor=rjk_processor))
+    asyncio.run(create_tanslated_csv(filename='rjk_translated.csv',
+                rows=csv_rows, csv_processor=translate_processor))
     end = time.time()
-    print(f'searched {len(csv_rows[:100])} links in {end - start} seconds')
+    print('--------------------------------------')
+    print(colored('[COMPLETE]', 'green'), f'translated {len(csv_rows)} links in {end - start} seconds')
