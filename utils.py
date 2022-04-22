@@ -8,6 +8,8 @@ import certifi
 from googletrans import Translator
 from termcolor import colored
 import settings
+import glob
+import json
 
 def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List:
 
@@ -58,6 +60,80 @@ def get_row_indicies(row: List[str]) -> List[str]:
         idx += 1
 
     return row_values
+
+
+def folder_explorer(dir: str) -> List[str]:
+    '''Takes a directory path and returns an array of all files in that directory'''
+
+    print(colored('[LOG]', 'blue'), f'opening dir: {dir} with folder_explorer')
+    json_files = glob.glob(dir + '/**/*.json', recursive=True)
+
+    return json_files
+
+
+def chi_url_generator(data: Dict[str, str]) -> Dict[str, str] or NoReturn:
+    '''Takes json file and extracts CHI urls from it'''
+
+    accessable = (data['is_public_domain']
+                  and data['artwork_type_title'] == 'Painting'
+                  and data['image_id'] is not None)
+
+    if accessable:
+        imageID = data['image_id']
+        large = f'https://www.artic.edu/iiif/2/{imageID}/full/1686,/0/default.jpg'
+        small = f'https://www.artic.edu/iiif/2/{imageID}/full/843,/0/default.jpg'
+        nameAndBio = data['artist_display'].split()
+        nameAndBio = ' '.join(nameAndBio)
+
+        return [
+            data['title'], nameAndBio, data['place_of_origin'],
+            nameAndBio, data['date_display'], data['medium_display'],
+            data['credit_line'], large, small
+        ]
+
+
+def file_explorer(file: str, data_extractor: Callable[[List[str]], Dict[str, str] or NoReturn]) -> List[str]:
+    '''Takes a file and a data_extractor. Returns data'''
+
+    f = open(file, 'r')
+    data = json.load(f)
+    f.close()
+
+    data = data_extractor(data)
+
+    return data
+
+
+def chi_processor():
+    start = time.time()
+
+    artwork_dir = '/Users/campbellpadgett/Desktop/art/API Stuff'
+    artwork_files = folder_explorer(artwork_dir)
+    print(colored('[LOG]', 'blue'), len(
+        artwork_files), f'files inside directory')
+    new_painting_count = url_count = 0
+
+    with open('chi.csv', mode='w') as file:
+        writer = csv.writer(file, delimiter=',',
+                            quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(['Title', 'Artist', 'Natiionality', 'Artist Bio',
+                        'Era', 'Medium', 'Source', 'Image Small', 'Image Large'])
+
+        print(colored('[LOG]', 'blue'), f'{"chi.csv"} created')
+
+        for artwork_file in artwork_files:
+            row = file_explorer(artwork_file, chi_url_generator)
+            url_count += 1
+
+            if row is not None:
+                writer.writerow(row)
+                new_painting_count += 1
+                print(colored('[COUNT]', 'yellow'),
+                      f'{len(artwork_files) - url_count} files left')
+
+    end = time.time()
+    print(colored('[COMPLETE]', 'green'),
+          f'searched and extracted {len(artwork_files)} files in {end - start} seconds, {new_painting_count} new urls')
 
 
 
@@ -116,11 +192,10 @@ async def translate_processor(row: List[str], pause: bool, session: aiohttp.Clie
     title_idx, bio_idx, nation_idx, medium_idx = 0, 3, 6, 7
     text = [row[title_idx], row[bio_idx], row[nation_idx], row[medium_idx]]
 
-    url = 'https://translation.googleapis.com/language/translate/v2?key=AIzaSyAsJ230kjrEFK0rDzoJWtFX3fGmwjvmKa4'
     params = {"q": f'{text}', "target": 'en'}
     # print(colored('[SENDING TRANSLATION]', 'magenta'), f'{row[title_idx]}')
 
-    async with session.post(url=url, params=params) as response:
+    async with session.post(url=settings.url, params=params) as response:
         if pause:
             print(colored('[RUNNING]', 'yellow'), f'{length - count} rows left to translate')
             time.sleep(0.3)
