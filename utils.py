@@ -23,16 +23,20 @@ def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List:
         csv_reader = csv.reader(csv_file_opened, delimiter=',')
 
         if source == 'MET':
-            class_idx, isPub_idx = 45, 3
+            class_idx, isPub_idx, title_idx = 45, 3, 9
         elif source == "RJK":
             class_idx, isPub_idx = 3, 6
+
 
         for row in csv_reader:
 
             classification = row[class_idx]
             isPublicDomain = row[isPub_idx]
+            title = row[title_idx]
 
-            if classification not in key_terms or isPublicDomain == False or isPublicDomain== '':
+            if (classification not in key_terms or isPublicDomain == False 
+                or isPublicDomain== '' 
+                or title ==''):
                 continue
             
             print(row)
@@ -123,6 +127,11 @@ def chi_processor():
 
         for artwork_file in artwork_files:
             row = file_explorer(artwork_file, chi_url_generator)
+
+            # if title is empty, don't presist
+            if row[0] == '' or row[0] is None:
+                continue
+
             url_count += 1
 
             if row is not None:
@@ -137,7 +146,7 @@ def chi_processor():
 
 
 
-def filter_for_rjk_fields(json_data: str, image_link: str) -> List[str]:
+def filter_for_rjk_fields(json_data: str, image_link: str) -> List[str] or None:
     """Takes in RJK json data and returns row for csv"""
 
     title = json_data['artObject']['title']
@@ -152,6 +161,10 @@ def filter_for_rjk_fields(json_data: str, image_link: str) -> List[str]:
     source = 'Rijksmuseum'
     date_of_release = json_data['artObject']['dating']['presentingDate']
     image_link = image_link
+
+    if title == '':
+        return None
+        
 
     return [title, artist, artist_nationality,
             artist_display_bio,
@@ -182,6 +195,9 @@ async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
 
         result = await response.json()
         new_line = filter_for_rjk_fields(result, image)
+
+        if new_line is None:
+            return
 
         print(colored('[LOG]', 'blue'), f'Storing {image}, {url}')
         writer.writerow(new_line)
@@ -320,75 +336,3 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
                 rows_traversed += 1
             await asyncio.gather(*tasks, return_exceptions=True)
             
-
-
-
-
-            
-if __name__ == '__main__':
-
-    # a = ['a', 'b', 'c']
-    # print(get_row_indicies(a))
-
-    # key_terms = ['Paintings', 'Paintings-Decorative']
-    # csv_traverse('../MET/MetObjects.csv', key_terms, 'MET')
-
-    source = 'RJK'
-    # original_file = '../MET/MetObjects.csv'
-    original_file = '../rijk/202001-rma-csv-collection.csv'
-    key_object_type_terms = ['schilderij']
-    # desired_met_data = {
-    #     'title': 9,
-    #     'artist': 18,
-    #     'artist_nationality': 22,
-    #     'artist_display_bio': 19,
-    #     'culture': 10,
-    #     'era': 11,
-    #     'gender': 25,
-    #     'nation': 38,
-    #     'medium': 31,
-    #     'source': 50,
-    #     'date_of_release': 28,
-    #     'image_link': 4
-    # }
-
-    desired_rjk_data = {
-        'title': 9,
-        'artist': 18,
-        'artist_nationality': 22,
-        'artist_display_bio': 19,
-        'culture': 10,
-        'era': 11,
-        'gender': 25,
-        'nation': 38,
-        'medium': 31,
-        'source': 50,
-        'date_of_release': 28,
-        'image_link': 4
-    }
-    
-    # csv_rows = csv_traverse(original_file, key_object_type_terms, source)
-
-    print(colored('[START]', 'green'))
-
-    csv_rows = []
-    with open('rjk.csv') as csv_file_opened:
-        print(colored('[LOG]', 'blue'), 'opened rjk.csv')
-        csv_reader = csv.reader(csv_file_opened, delimiter=',')
-        count = 0
-        for row in csv_reader:
-            if count == 0:
-                count += 1
-                continue
-            csv_rows.append(row)
-
-    print(colored('[LOG]', 'blue'), len(csv_rows), 'rows to be processed')
-    print('--------------------------------------')
-    start = time.time()
-    # asyncio.run(create_new_csv(filename='rjk.csv',
-    #             rows=csv_rows, desired_data=desired_rjk_data, csv_processor=rjk_processor))
-    asyncio.run(create_tanslated_csv(filename='rjk_translated.csv',
-                rows=csv_rows, csv_processor=translate_processor))
-    end = time.time()
-    print('--------------------------------------')
-    print(colored('[COMPLETE]', 'green'), f'translated {len(csv_rows)} links in {end - start} seconds')

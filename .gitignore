@@ -2,3 +2,11 @@
 /include
 /lib
 pyvenv.cfg
+settings.py
+rjk.csv
+met.csv
+rjk_translated.csv
+test.py 
+chi.csv
+__pycache__
+test.py
