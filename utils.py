@@ -5,11 +5,10 @@ import asyncio
 import ssl
 import time
 import certifi
-from googletrans import Translator
-from termcolor import colored
 import settings
 import glob
 import json
+from logger import log, warning_msg
 
 def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List:
 
@@ -45,8 +44,6 @@ def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List:
         end = time.time()
         print(f'traversed {len(traversed_csv)} rows in {end - start} seconds')
         return traversed_csv
-        # print(traversed_csv[:5])
-        # print(type(traversed_csv))
 
 
 
@@ -68,8 +65,8 @@ def get_row_indicies(row: List[str]) -> List[str]:
 
 def folder_explorer(dir: str) -> List[str]:
     '''Takes a directory path and returns an array of all files in that directory'''
-
-    print(colored('[LOG]', 'blue'), f'opening dir: {dir} with folder_explorer')
+    
+    log(f'opening dir: {dir} with folder_explorer', 'blue')
     json_files = glob.glob(dir + '/**/*.json', recursive=True)
 
     return json_files
@@ -109,13 +106,14 @@ def file_explorer(file: str, data_extractor: Callable[[List[str]], Dict[str, str
 
 
 def chi_processor():
+    '''Runs through the Chicago Art Institute Folders and creates a csv of the artwork'''
+    
     start = time.time()
 
     artwork_dir = '/Users/campbellpadgett/Desktop/art/API Stuff'
     artwork_files = folder_explorer(artwork_dir)
-    print(colored('[LOG]', 'blue'), len(
-        artwork_files), f'files inside directory')
-    new_painting_count = url_count = 0
+
+    log(f'files inside directory', 'blue')
 
     with open('chi.csv', mode='w') as file:
         writer = csv.writer(file, delimiter=',',
@@ -123,7 +121,7 @@ def chi_processor():
         writer.writerow(['Title', 'Artist', 'Natiionality', 'Artist Bio',
                         'Era', 'Medium', 'Source', 'Image Small', 'Image Large'])
 
-        print(colored('[LOG]', 'blue'), f'{"chi.csv"} created')
+        log(f'{"chi.csv"} created', 'blue')
 
         for artwork_file in artwork_files:
             row = file_explorer(artwork_file, chi_url_generator)
@@ -132,18 +130,11 @@ def chi_processor():
             if row[0] == '' or row[0] is None:
                 continue
 
-            url_count += 1
-
             if row is not None:
                 writer.writerow(row)
-                new_painting_count += 1
-                print(colored('[COUNT]', 'yellow'),
-                      f'{len(artwork_files) - url_count} files left')
 
     end = time.time()
-    print(colored('[COMPLETE]', 'green'),
-          f'searched and extracted {len(artwork_files)} files in {end - start} seconds, {new_painting_count} new urls')
-
+    log(f'searched and extracted {len(artwork_files)} files in {end - start} seconds', 'green')
 
 
 def filter_for_rjk_fields(json_data: str, image_link: str) -> List[str] or None:
@@ -155,7 +146,6 @@ def filter_for_rjk_fields(json_data: str, image_link: str) -> List[str] or None:
     artist_display_bio = json_data['artObject']['principalMakers'][0]['labelDesc']
     culture = json_data['artObject']['language']
     era = json_data['artObject']['dating']['presentingDate']
-    # gender = json_data['artObject']['dating']['presentingDate']
     nation = json_data['artObject']['productionPlaces'][0]
     medium = json_data['artObject']['physicalMedium']
     source = 'Rijksmuseum'
@@ -187,10 +177,9 @@ async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
     url = f'https://www.rijksmuseum.nl/api/nl/collection/{object_number}?key=RDOovp6Y'
     
     async with session.get(url, allow_redirects=False) as response:
-        # per instructions of met api
+        # per instructions of rjk api
         if pause:
-            print(colored('[PAUSE]', 'yellow'),
-                  '_____limit reached, pausing 1 second_____')
+            warning_msg('_____limit reached, pausing 1 second_____')
             time.sleep(1)
 
         result = await response.json()
@@ -199,21 +188,21 @@ async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
         if new_line is None:
             return
 
-        print(colored('[LOG]', 'blue'), f'Storing {image}, {url}')
+        log(f'Storing {image}, {url}', 'blue')
         writer.writerow(new_line)
 
 
 async def translate_processor(row: List[str], pause: bool, session: aiohttp.ClientSession, writer: Callable, count: int, length: int):
+    '''Runs through the Rijksmuseum data, creates a csv file translated to english'''
 
     title_idx, bio_idx, nation_idx, medium_idx = 0, 3, 6, 7
     text = [row[title_idx], row[bio_idx], row[nation_idx], row[medium_idx]]
 
     params = {"q": f'{text}', "target": 'en'}
-    # print(colored('[SENDING TRANSLATION]', 'magenta'), f'{row[title_idx]}')
 
     async with session.post(url=settings.url, params=params) as response:
         if pause:
-            print(colored('[RUNNING]', 'yellow'), f'{length - count} rows left to translate')
+            log(f'{length - count} rows left to translate', 'yellow')
             time.sleep(0.3)
 
         translated_texts: List[str] = await response.json()
@@ -228,8 +217,6 @@ async def translate_processor(row: List[str], pause: bool, session: aiohttp.Clie
         comma_striped_translation = combined_translation.replace("'", "")
 
         translation = comma_striped_translation.split(',')
-        # print(translation)
-        # print(colored(f'[TRANSLATION]:', 'magenta'), f'{translation[0]}')
 
         title, nation, medium = translation[0], translation[3], translation[4]
         bio = translation[1] + ',' + translation[2]
@@ -250,6 +237,7 @@ async def translate_processor(row: List[str], pause: bool, session: aiohttp.Clie
 
 
 async def create_tanslated_csv(filename: str, rows: list[str], csv_processor: Callable[[str, bool, Callable], NoReturn]):
+    '''Creates csv for translated values from the Rijksmuseum data'''
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh Intel Mac OS X 10.15 rv: 98.0) Gecko/20100101 Firefox/98.0"
@@ -322,8 +310,8 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
                                 quotechar='"', quoting=csv.QUOTE_MINIMAL)
         writer.writerow(['Title', 'Artist', 'Natiionality', 'Artist Bio', 'Culture', 'Era', 'Gender', 'Nation', 'Medium', 'Source', 'DOR', 'Image'])
 
-        print(colored('[LOG]', 'blue'), f'{filename} created')
-
+        log(f'{filename} created', 'blue')
+        
         async with aiohttp.ClientSession(connector=conn, headers=headers) as session:
             tasks, rows_traversed = [], 0
             for row in rows:
