@@ -1,7 +1,7 @@
 from utils import chi_processor
 from rjk import rjk
 from met import met
-
+from logger import start_msg
 
 
 
@@ -15,7 +15,7 @@ from met import met
 
 def main():
 
-    print('CHI: 1, MET: 2, or RJK: 3')
+    start_msg('CHI: 1, MET: 2, or RJK: 3')
     source = input('Which source will we convert? ')
     
     if source == '1':

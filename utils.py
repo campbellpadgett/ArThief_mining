@@ -71,6 +71,16 @@ def folder_explorer(dir: str) -> List[str]:
 
     return json_files
 
+def file_explorer(file: str, data_extractor: Callable[[List[str]], Dict[str, str] or NoReturn]) -> List[str]:
+    '''Takes a file and a data_extractor. Returns data'''
+
+    f = open(file, 'r')
+    data = json.load(f)
+    f.close()
+
+    data = data_extractor(data)
+
+    return data
 
 def chi_url_generator(data: Dict[str, str]) -> Dict[str, str] or NoReturn:
     '''Takes json file and extracts CHI urls from it'''
@@ -93,25 +103,11 @@ def chi_url_generator(data: Dict[str, str]) -> Dict[str, str] or NoReturn:
         ]
 
 
-def file_explorer(file: str, data_extractor: Callable[[List[str]], Dict[str, str] or NoReturn]) -> List[str]:
-    '''Takes a file and a data_extractor. Returns data'''
-
-    f = open(file, 'r')
-    data = json.load(f)
-    f.close()
-
-    data = data_extractor(data)
-
-    return data
-
-
 def chi_processor():
     '''Runs through the Chicago Art Institute Folders and creates a csv of the artwork'''
     
     start = time.time()
-
-    artwork_dir = '/Users/campbellpadgett/Desktop/art/API Stuff'
-    artwork_files = folder_explorer(artwork_dir)
+    artwork_files = folder_explorer(settings.artwork_dir)
 
     log(f'files inside directory', 'blue')
 
@@ -173,8 +169,9 @@ async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
     in it. Then stores new url and desired data in new csv row"""
 
 
+    # here, we take the object number and insert it into the rjk api link, along with the api key in settings
     object_number, image = row[0], row[6]
-    url = f'https://www.rijksmuseum.nl/api/nl/collection/{object_number}?key=RDOovp6Y'
+    url = f'https://www.rijksmuseum.nl/api/nl/collection/{object_number}?key={settings.rjk_api}'
     
     async with session.get(url, allow_redirects=False) as response:
         # per instructions of rjk api
@@ -200,7 +197,8 @@ async def translate_processor(row: List[str], pause: bool, session: aiohttp.Clie
 
     params = {"q": f'{text}', "target": 'en'}
 
-    async with session.post(url=settings.url, params=params) as response:
+    # we take the texts above and send them to google translate (using settings.google_api_url) and then persist
+    async with session.post(url=settings.google_api_url, params=params) as response:
         if pause:
             log(f'{length - count} rows left to translate', 'yellow')
             time.sleep(0.3)
@@ -239,9 +237,8 @@ async def translate_processor(row: List[str], pause: bool, session: aiohttp.Clie
 async def create_tanslated_csv(filename: str, rows: list[str], csv_processor: Callable[[str, bool, Callable], NoReturn]):
     '''Creates csv for translated values from the Rijksmuseum data'''
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh Intel Mac OS X 10.15 rv: 98.0) Gecko/20100101 Firefox/98.0"
-    }
+    # we include headers because the RJK and MET apis will only allow pc machines.
+    headers = { "User-Agent": settings.user_agent }
     ssl_context = ssl.create_default_context(cafile=certifi.where())
     conn = aiohttp.TCPConnector(ssl=ssl_context, limit=10)
 
@@ -299,9 +296,8 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
     """Takes rows of csv data and persists them to new csv using the process_csv_entry function
     and the event loop from asyncio and aiohttp"""
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh Intel Mac OS X 10.15 rv: 98.0) Gecko/20100101 Firefox/98.0"
-    }
+    # we include headers because the RJK and MET apis will only allow pc machines.
+    headers = {"User-Agent": settings.user_agent}
     ssl_context = ssl.create_default_context(cafile=certifi.where())
     conn = aiohttp.TCPConnector(ssl=ssl_context, limit=10)
 
