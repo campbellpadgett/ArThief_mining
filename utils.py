@@ -10,7 +10,17 @@ import glob
 import json
 from logger import log, warning_msg
 
-def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List:
+# need the below comment to avoid encoding error with ide 
+# -*- coding: utf-8 -*-
+def isNotEnglish(s):
+    try:
+        s.encode(encoding='utf-8').decode('ascii')
+    except UnicodeDecodeError:
+        return True
+    else:
+        return False
+
+def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List[str]:
 
     """Used to take a csv file and filter out non-painting 
     or non-Photo related artworks, returns results"""
@@ -35,7 +45,8 @@ def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List:
 
             if (classification not in key_terms or isPublicDomain == False 
                 or isPublicDomain== '' 
-                or title ==''):
+                or title ==''
+                or isNotEnglish(title)):
                 continue
             
             print(row)
@@ -44,8 +55,6 @@ def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List:
         end = time.time()
         print(f'traversed {len(traversed_csv)} rows in {end - start} seconds')
         return traversed_csv
-
-
 
 
 def get_row_indicies(row: List[str]) -> List[str]:
