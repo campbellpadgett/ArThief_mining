@@ -4,8 +4,6 @@ from utils import csv_traverse, create_new_csv, rjk_processor
 import asyncio
 
 
-
-
 def rjk() -> NoReturn:
 
     source = 'RJK'
