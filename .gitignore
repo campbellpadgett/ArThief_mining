@@ -9,5 +9,6 @@ met.csv
 rjk_translated.csv
 test.py 
 chi.csv
-__pycache__
+/__pycache__
 test.py
+.DS_Store

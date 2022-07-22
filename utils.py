@@ -136,8 +136,10 @@ def chi_processor():
 
         log(f'{"chi.csv"} created', 'blue')
 
+        rows_processed = 0
         for artwork_file in artwork_files:
             row = file_explorer(artwork_file, chi_url_generator)
+            log(f'{len(row) - rows_processed} rows left', 'pink')
 
             if row is not None:
                 writer.writerow(row)
