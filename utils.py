@@ -28,7 +28,7 @@ def rjk_translated_csv_traverse(csv_file: str) -> List[str]:
     
     traversed_csv = []
     start = time.time()
-    log('running csv_travers', 'blue')
+    log('running csv_traverse', 'blue')
     with open(csv_file) as csv_file_opened:
 
         csv_reader = csv.reader(csv_file_opened, delimiter=',')

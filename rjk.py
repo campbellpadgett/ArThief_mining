@@ -1,6 +1,6 @@
 import time
 from typing import NoReturn
-from utils import csv_traverse, create_new_csv, rjk_processor, translate_processor, create_tanslated_csv
+from utils import csv_traverse, create_new_csv, rjk_processor, translate_processor, create_tanslated_csv, rjk_translated_csv_traverse
 import asyncio
 
 
@@ -26,8 +26,7 @@ def rjk() -> NoReturn:
     }
 
     csv_rows = csv_traverse(original_file, key_object_type_terms, source)
-    pre_csv_filename = 'rjk.csv'
-    pre_translated_filename = 'rjk-translated.csv'
+    pre_csv_filename = 'rjk.csv'    
 
     print(len(csv_rows))
     print('--------------------------------------')
@@ -35,16 +34,9 @@ def rjk() -> NoReturn:
     # get rjk data
     asyncio.run(create_new_csv(filename=pre_csv_filename,
                 rows=csv_rows, desired_data=desired_rjk_data, csv_processor=rjk_processor))
-
-
-                
     # translate rjk data
-    csv_rows_to_translate = create_tanslated_csv(pre_csv_filename, key_object_type_terms, source)
-    asyncio.run(create_tanslated_csv(filename=pre_translated_filename,
-                rows=csv_rows_to_translate, desired_data=desired_rjk_data, csv_processor=translate_processor))
-
-    
-    
+    csv_rows_to_translate = rjk_translated_csv_traverse(pre_csv_filename)
+    asyncio.run(create_tanslated_csv(filename='rjk-translated.csv', rows=csv_rows_to_translate, csv_processor=translate_processor))
     end = time.time()
     print(f'searched {len(csv_rows)} links in {end - start} seconds')
 
