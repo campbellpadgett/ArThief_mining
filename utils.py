@@ -21,6 +21,30 @@ def isNotLatinAlphabet(s):
     else:
         return False
 
+
+def rjk_translated_csv_traverse(csv_file: str) -> List[str]:
+    
+    """Used to take a translated rjk csv file and return rows as a list"""
+    
+    traversed_csv = []
+    start = time.time()
+    log('running csv_travers', 'blue')
+    with open(csv_file) as csv_file_opened:
+
+        csv_reader = csv.reader(csv_file_opened, delimiter=',')
+        for row in csv_reader:
+            title = row[0]
+
+            if (title == '' or isNotLatinAlphabet(title)):
+                continue
+
+            traversed_csv.append(row)
+
+        end = time.time()
+        log(f'traversed {len(traversed_csv)} rows in {end - start} seconds', 'green')
+        return traversed_csv
+
+
 def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List[str]:
 
     """Used to take a csv file and filter out non-painting 
@@ -36,7 +60,7 @@ def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List[str]:
         if source == 'MET':
             class_idx, isPub_idx, title_idx = 45, 3, 9
         elif source == "RJK":
-            class_idx, isPub_idx = 3, 6
+            title_idx, class_idx, isPub_idx = 2, 3, 6
 
 
         for row in csv_reader:
@@ -192,7 +216,7 @@ async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
     async with session.get(url, allow_redirects=False) as response:
         # per instructions of rjk api
         if pause:
-            warning_msg('_____limit reached, pausing 1 second_____')
+            log('_____still processing_____', 'magenta')
             time.sleep(1)
 
         result = await response.json()
@@ -201,12 +225,11 @@ async def rjk_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
         if new_line is None:
             return
 
-        log(f'Storing {image}, {url}', 'blue')
         writer.writerow(new_line)
 
 
 async def translate_processor(row: List[str], pause: bool, session: aiohttp.ClientSession, writer: Callable, count: int, length: int):
-    '''Runs through the Rijksmuseum data, creates a csv file translated to english'''
+    '''Runs through the Rijksmuseum data and provides english translaton'''
 
     title_idx, bio_idx, nation_idx, medium_idx = 0, 3, 6, 7
     text = [row[title_idx], row[bio_idx], row[nation_idx], row[medium_idx]]
@@ -261,9 +284,6 @@ async def create_tanslated_csv(filename: str, rows: list[str], csv_processor: Ca
     with open(filename, mode='w') as file:
         writer = csv.writer(file, delimiter=',',
                             quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        writer.writerow(['Title', 'Artist', 'Nationality', 'Artist Bio', 'Culture',
-                        'Era', 'Nation', 'Medium', 'Source', 'DOR', 'Image'])
-
         count = 1
         length = len(rows)
 
