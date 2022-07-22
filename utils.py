@@ -13,7 +13,7 @@ from logger import log, warning_msg
 
 # need the below comment to avoid encoding error with ide 
 # -*- coding: utf-8 -*-
-def isNotEnglish(s):
+def isNotLatinAlphabet(s):
     try:
         s.encode(encoding='utf-8').decode('ascii')
     except UnicodeDecodeError:
@@ -28,6 +28,7 @@ def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List[str]:
 
     traversed_csv = []
     start = time.time()
+    log('running csv_travers', 'blue')
     with open(csv_file) as csv_file_opened:
 
         csv_reader = csv.reader(csv_file_opened, delimiter=',')
@@ -47,14 +48,13 @@ def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List[str]:
             if (classification not in key_terms or isPublicDomain == False 
                 or isPublicDomain== '' 
                 or title ==''
-                or isNotEnglish(title)):
+                or isNotLatinAlphabet(title)):
                 continue
             
-            print(row)
             traversed_csv.append(row)
         
         end = time.time()
-        print(f'traversed {len(traversed_csv)} rows in {end - start} seconds')
+        log(f'traversed {len(traversed_csv)} rows in {end - start} seconds', 'green')
         return traversed_csv
 
 
@@ -294,14 +294,13 @@ async def met_processor(row: str, session: aiohttp.ClientSession, pause: bool, d
     async with session.get(url, allow_redirects=False) as response:
         # per instructions of met api
         if pause:
-            print('_________limit hit. Pausing for 1.3 seconds_________')
-            time.sleep(1.3)
+            print('_________still processing_________')
+            time.sleep(1)
 
         result = await response.json()
         primaryImage, primaryImageSmall = result['primaryImage'], result['primaryImageSmall']
 
         if result['isPublicDomain']:
-            print(f'Storing {primaryImage}, {url}')
             new_line.append(primaryImage)
             new_line.append(primaryImageSmall)
             writer.writerow(new_line)
@@ -318,10 +317,7 @@ async def create_new_csv(filename: str, rows: list[str], desired_data: Dict[str,
     conn = aiohttp.TCPConnector(ssl=ssl_context, limit=10)
 
     with open(filename, mode='w') as file:
-        writer = csv.writer(file, delimiter=',',
-                                quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        writer.writerow(['Title', 'Artist', 'Natiionality', 'Artist Bio', 'Culture', 'Era', 'Gender', 'Nation', 'Medium', 'Source', 'DOR', 'Image'])
-
+        writer = csv.writer(file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         log(f'{filename} created', 'blue')
         
         async with aiohttp.ClientSession(connector=conn, headers=headers) as session:
