@@ -140,7 +140,7 @@ def chi_processor():
         for artwork_file in artwork_files:
             row = file_explorer(artwork_file, chi_url_generator)
             rows_processed += 1
-            log(f'{rows_processed} rows so far', 'pink')
+            log(f'{rows_processed} rows so far', 'magenta')
 
             if row is not None:
                 writer.writerow(row)

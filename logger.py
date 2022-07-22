@@ -2,6 +2,8 @@ from typing import NoReturn
 from termcolor import colored
 
 def log(message: str, color: str) -> NoReturn:
+    '''Available text colors: red, green, yellow, blue, magenta, cyan, white.'''
+
     print(colored('[LOG]', color), message)
 
 
