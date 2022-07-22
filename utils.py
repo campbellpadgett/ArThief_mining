@@ -1,4 +1,5 @@
 import csv
+from logging import error
 from typing import Callable, List, Dict, NoReturn
 import aiohttp
 import asyncio
@@ -94,10 +95,14 @@ def file_explorer(file: str, data_extractor: Callable[[List[str]], Dict[str, str
 def chi_url_generator(data: Dict[str, str]) -> Dict[str, str] or NoReturn:
     '''Takes json file and extracts CHI urls from it'''
 
+
+    # ensures valid title, legally accessable, and image_id is present
     accessable = (data['is_public_domain']
                   and data['artwork_type_title'] == 'Painting'
-                  and data['image_id'] is not None)
+                  and data['image_id'] is not None
+                  and data['title'] != '')
 
+    
     if accessable:
         imageID = data['image_id']
         large = f'https://www.artic.edu/iiif/2/{imageID}/full/1686,/0/default.jpg'
@@ -118,7 +123,10 @@ def chi_processor():
     start = time.time()
     artwork_files = folder_explorer(settings.artwork_dir)
 
-    log(f'files inside directory', 'blue')
+    log(f'number of files in /artwork {len(artwork_files)}', 'green')
+
+    if len(artwork_files) == 0:
+        error("artwork_files did not properly process")
 
     with open('chi.csv', mode='w') as file:
         writer = csv.writer(file, delimiter=',',
@@ -130,10 +138,6 @@ def chi_processor():
 
         for artwork_file in artwork_files:
             row = file_explorer(artwork_file, chi_url_generator)
-
-            # if title is empty, don't presist
-            if row[0] == '' or row[0] is None:
-                continue
 
             if row is not None:
                 writer.writerow(row)
