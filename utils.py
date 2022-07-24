@@ -1,5 +1,6 @@
 import csv
 from logging import error
+import string
 from typing import Callable, List, Dict, NoReturn
 import aiohttp
 import asyncio
@@ -9,11 +10,11 @@ import certifi
 import settings
 import glob
 import json
-from logger import log, warning_msg
+from logger import log
 
 # need the below comment to avoid encoding error with ide 
 # -*- coding: utf-8 -*-
-def isNotLatinAlphabet(s):
+def isNotLatinAlphabet(s: str):
     try:
         s.encode(encoding='utf-8').decode('ascii')
     except UnicodeDecodeError:
