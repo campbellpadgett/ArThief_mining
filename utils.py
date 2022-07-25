@@ -83,21 +83,6 @@ def csv_traverse(csv_file: str, key_terms: List[str], source: str) -> List[str]:
         return traversed_csv
 
 
-def get_row_indicies(row: List[str]) -> List[str]:
-    
-    """Used to show the row values and their corrisponding indicies.
-        Should be first row of CSV file"""
-
-    row_values = []
-    idx = 0
-    
-    for value in row:
-        row_values.append(f'{value} {idx}')
-        idx += 1
-
-    return row_values
-
-
 def folder_explorer(dir: str) -> List[str]:
     '''Takes a directory path and returns an array of all files in that directory'''
     
