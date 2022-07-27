@@ -19,7 +19,6 @@
 # create new csvs
 # processors
 # csv traversers
-# url generators
 
 
 # RP-P-1997-357, http: // hdl.handle.net/10934/RM0001.COLLECT.356891, Affiche voor 'Kleine schilderijen' door Georg Rueter, affiche, "Rueter, Georg", 1945,
@@ -28,21 +27,51 @@
 
 
 
+from re import S
 import unittest
 import asynctest
 import aiohttp
 import certifi
 import ssl
 import json
+from rjk import rjk
 
-from utils import isNotLatinAlphabet, filter_for_rjk_fields, chi_url_generator
+from utils import isNotLatinAlphabet, filter_for_rjk_fields, chi_url_generator, csv_traverse, rjk_translated_csv_traverse
 import settings
 
+class TestCSV_Traversers(unittest.TestCase):
+    def setUp(self):
+        self.rjk_t = 'test_material/test_rjk_translated.csv'
+        self.rjk = 'test_material/test_rjk.csv'
+        self.met = 'test_material/test_met.csv'
+
+    def test_is_public_domain(self):
+        rjk_data = csv_traverse(self.rjk, ['schilderij'], 'RJK')
+        self.assertTrue(len(rjk_data) == 1)
+        self.assertTrue(rjk_data[0][0] == 'AK-BR-325')
+
+        met_data = csv_traverse(self.met, ['Paintings'], 'MET')
+        self.assertTrue(len(met_data) == 1)
+        self.assertTrue(met_data[0][0] == '67.265.9')
+
+    def test_title(self):
+        rjk_data = csv_traverse(self.rjk, ['schilderij'], 'RJK')
+        self.assertTrue(rjk_data[0][2] == 'Eivormige vaas met een rood glazuur')
+
+        met_data = csv_traverse(self.met, ['Paintings'], 'MET')
+        self.assertTrue(met_data[0][9] == 'Two-and-a-Half Dollar Coin')
+
+        rjkT_data = rjk_translated_csv_traverse(self.rjk_t)
+        self.assertTrue(len(rjkT_data) == 1)
+        self.assertTrue(rjkT_data[0][0] == 'De doop van de kamerling')
+
+    def tearDown(self):
+        del self.rjk_t, self.rjk, self.met
 
 
 class TestCHI_URL_Generators(unittest.TestCase):
     def setUp(self):
-        with open('tests/82193.json', 'r') as a, open('tests/99712.json', 'r') as b:
+        with open('test_material/82193.json', 'r') as a, open('test_material/99712.json', 'r') as b:
             self.json_1 = json.load(a)
             self.json_2 = json.load(b)
             a.close(), b.close()
